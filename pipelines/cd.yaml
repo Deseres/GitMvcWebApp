@@ -80,15 +80,16 @@ stages:
             inputs:
               version: '8.0.x'
           - task: DotNetCoreCLI@2
-            displayName: Publish API
+            displayName: Publish APP
             inputs:
               command: publish
               publishWebProjects: false
-              projects: GitMvcWebApp/GitMvcWebApp.csproj
-              arguments: >
-                -c $(buildConfiguration)
-                -o $(Pipeline.Workspace)/app
-          - publish: $(Pipeline.Workspace)/app
+              # Use the relative path we fixed earlier
+              projects: 'GitMvcWebApp/GitMvcWebApp.csproj'
+              # Output to ArtifactStagingDirectory and force a zip file
+              arguments: '-c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)'
+              zipAfterPublish: true 
+          - publish: $(Build.ArtifactStagingDirectory)
             artifact: artifact-app
   - stage: DeployApp
     displayName: Deploy App
@@ -109,6 +110,7 @@ stages:
             inputs:
               azureSubscription: $(azureServiceConnection)
               appType: webApp
+              # Use the correct variable name we fixed (AppName)
               appName: $(AppName)
-              # Updated to match your publish output directory
-              package: $(Pipeline.Workspace)/app
+              # Point specifically to the zip file created in Step 1
+              package: $(Pipeline.Workspace)/app/**/*.zip
