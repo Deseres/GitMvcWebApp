@@ -1,0 +1,112 @@
+trigger:
+  - develop
+pr:
+  - none
+variables:
+  terraformWorkingDir: terraform
+  azureServiceConnection: AzureServiceConnection
+  terraformVersion: 1.6.6
+  buildConfiguration: Release
+  apiAppName: lab11ExtraTaskWeb71977
+stages:
+  - stage: TerraformPlan
+    displayName: Terraform Plan
+    jobs:
+      - job: Plan
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: $(terraformVersion)
+          - task: TerraformTaskV4@4
+            inputs:
+              provider: azurerm
+              command: init
+              workingDirectory: $(terraformWorkingDir)
+              backendServiceArm: $(azureServiceConnection)
+              backendAzureRmResourceGroupName: LabCommon
+              backendAzureRmStorageAccountName: common71977
+              backendAzureRmContainerName: terraform
+              backendAzureRmKey: lab11ExtraTask.tfstate
+          - task: TerraformTaskV4@4
+            inputs:
+              provider: azurerm
+              command: plan
+              workingDirectory: $(terraformWorkingDir)
+              environmentServiceNameAzureRM: $(azureServiceConnection)
+
+  - stage: TerraformApply
+    displayName: Terraform Apply
+    jobs:
+      - job: Apply
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: $(terraformVersion)
+          - task: TerraformTaskV4@4
+            inputs:
+              provider: azurerm
+              command: init
+              workingDirectory: $(terraformWorkingDir)
+              environmentServiceNameAzureRM: $(azureServiceConnection)
+              backendServiceArm: $(azureServiceConnection)
+              backendAzureRmResourceGroupName: LabCommon
+              backendAzureRmStorageAccountName: common71977
+              backendAzureRmContainerName: terraform
+              backendAzureRmKey: lab11ExtraTask.tfstate
+          - task: TerraformTaskV4@4
+            inputs:
+              provider: azurerm
+              command: apply
+              workingDirectory: $(terraformWorkingDir)
+              environmentServiceNameAzureRM: $(azureServiceConnection)
+              commandOptions: -auto-approve
+
+  - stage: BuildApp
+    displayName: App - Build & Deploy
+    dependsOn: TerraformApply
+    jobs:
+      - job: BuildApp
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+          - task: UseDotNet@2
+            inputs:
+              version: '8.0.x'
+          - task: DotNetCoreCLI@2
+            displayName: Publish API
+            inputs:
+              command: publish
+              publishWebProjects: false
+              projects: /GitMvcWebApp/GitMvcWebApp.csproj
+              arguments: >-
+                -c $(buildConfiguration)
+                -o $(Pipeline.Workspace)/app
+          - publish: $(Pipeline.Workspace)/app
+            artifact: artifact-app
+  - stage: DeployApp
+    displayName: Deploy App
+    dependsOn: BuildApp
+    jobs:
+      - job: DeployApp
+        pool:
+          vmImage: windows-latest
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: Download app artifact
+            inputs:
+              buildType: current
+              artifact: artifact-app
+              path: $(Pipeline.Workspace)/app
+          - task: AzureFunctionApp@2
+            inputs:
+              AzureSubscription: $(azureServiceConnection)
+              appType: WebApp
+              appName: $(appAppName)
+              package: $(Pipeline.Workspace)/app/**/*.zip
