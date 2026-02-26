@@ -1,5 +1,7 @@
-trigger:
-- develop
+trigger: none
+
+pr:
+  - develop
 
 stages:
 - stage: VerifyCode
