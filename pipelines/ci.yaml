@@ -1,0 +1,38 @@
+trigger:
+- develop
+
+stages:
+- stage: VerifyCode
+  displayName: Code verification
+  jobs:
+  - job: GitMvcWebApp
+    displayName: GitMvcWebApp build & verify
+    pool:
+      vmImage: windows-latest
+    steps:
+    - checkout: self
+    - task: UseDotNet@2
+      inputs:
+        version: '8.0.x'
+    - script: dotnet build code/GitMvcWebApp --configuration Release
+      displayName: Build GitMvcWebApp
+
+- stage: TerraformValidate
+  displayName: Terraform validation
+  dependsOn: VerifyCode
+  jobs:
+  - job: Terraform
+    displayName: Terraform validate
+    pool:
+      vmImage: windows-latest
+    steps:
+    - checkout: self
+    - task: TerraformInstaller@1
+      displayName: Install Terraform
+      inputs:
+        terraformVersion: '1.6.6'
+    - script: |
+        cd terraform
+        terraform init -backend=false
+        terraform validate
+      displayName: Terraform init & validate
