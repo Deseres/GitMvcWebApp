@@ -7,7 +7,7 @@ variables:
   azureServiceConnection: AzureServiceConnection
   terraformVersion: 1.6.6
   buildConfiguration: Release
-  apiAppName: lab11ExtraTaskWeb71977
+  AppName: lab11ExtraTaskWeb71977
 stages:
   - stage: TerraformPlan
     displayName: Terraform Plan
@@ -85,7 +85,7 @@ stages:
               command: publish
               publishWebProjects: false
               projects: GitMvcWebApp/GitMvcWebApp.csproj
-              arguments: >-
+              arguments: >
                 -c $(buildConfiguration)
                 -o $(Pipeline.Workspace)/app
           - publish: $(Pipeline.Workspace)/app
@@ -104,9 +104,11 @@ stages:
               buildType: current
               artifact: artifact-app
               path: $(Pipeline.Workspace)/app
-          - task: AzureFunctionApp@2
+          - task: AzureWebApp@1
+            displayName: 'Azure Web App Deploy'
             inputs:
-              AzureSubscription: $(azureServiceConnection)
-              appType: WebApp
-              appName: $(appAppName)
-              package: $(Pipeline.Workspace)/app/**/*.zip
+              azureSubscription: $(azureServiceConnection)
+              appType: webApp
+              appName: $(AppName)
+              # Updated to match your publish output directory
+              package: $(Pipeline.Workspace)/app
